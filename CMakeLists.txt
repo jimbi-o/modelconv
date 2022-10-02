@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
-project(minimalcpppj
+project(modelconv
   VERSION 1.0
-  DESCRIPTION "minimal cpp pj template"
+  DESCRIPTION "model converter for illuminate renderer"
   LANGUAGES CXX
 )
 
