@@ -12,7 +12,12 @@ CPMAddPackage(
   NAME assimp
   GITHUB_REPOSITORY assimp/assimp
   VERSION 5.2.5
-  OPTIONS "ASSIMP_NO_EXPORT ON" "ASSIMP_BUILD_TESTS OFF" "ASSIMP_INSTALL OFF" "ASSIMP_BUILD_ASSIMP_VIEW OFF" "BUILD_SHARED_LIBS OFF"
+  OPTIONS "ASSIMP_NO_EXPORT ON" "ASSIMP_BUILD_TESTS OFF" "ASSIMP_INSTALL OFF" "ASSIMP_BUILD_ASSIMP_VIEW OFF" "BUILD_SHARED_LIBS ON"
+)
+CPMAddPackage(
+  NAME gfxminimath
+  GITHUB_REPOSITORY "jimbi-o/gfxminimath"
+  GIT_TAG "e5b289ae4f4ac97755b053c5b2a97da6e4538c56"
 )
 
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -25,7 +30,7 @@ else()
 endif()
 target_include_directories(${PROJECT_NAME} SYSTEM INTERFACE spdlog)
 set_target_properties(spdlog PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:spdlog,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog assimp)
+target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog assimp gfxminimath)
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_compile_options(${PROJECT_NAME} PRIVATE
@@ -41,11 +46,6 @@ target_include_directories(${PROJECT_NAME}
   PRIVATE
   "${assimp_SOURCE_DIR}/include"
   "${assimp_BINARY_DIR}/include"
-)
-target_precompile_headers(${PROJECT_NAME}
-  PRIVATE
-  "${spdlog_SOURCE_DIR}/include/spdlog/spdlog.h"
-  "${assimp_SOURCE_DIR}/include/assimp/Importer.hpp"
-  "${assimp_SOURCE_DIR}/include/assimp/scene.h"
+  "${gfxminimath_SOURCE_DIR}/include"
 )
 add_subdirectory(src)
