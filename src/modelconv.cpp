@@ -1,5 +1,8 @@
 #include "modelconv/modelconv.h"
 #include <cassert>
+#include <cstdio>
+#include <fstream>
+#include <iostream>
 #include <utility>
 #include <vector>
 #include "assimp/Importer.hpp"
@@ -24,11 +27,13 @@ namespace modelconv {
 namespace {
 using namespace Assimp;
 const uint32_t kInvalidIndex = ~0U;
+// data required by CPU per draw call
 struct PerDrawCallModelIndexSet {
   std::vector<uint32_t> transform_matrix_index_list;
   uint32_t index_buffer_offset;
   uint32_t index_buffer_len;
 };
+// binaries bound to GPU on draw
 struct FlattenedModelData {
   std::vector<aiMatrix4x4> transform_matrix_list;
   std::vector<uint32_t> index_buffer;
@@ -98,12 +103,36 @@ auto FlattenModelDataPerDrawCall(const aiScene* scene) {
   GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set, &flattened_model_data.index_buffer);
   return std::make_pair(per_draw_call_model_index_set, flattened_model_data);
 }
+auto GetFlattenedTransformList(const std::vector<aiMatrix4x4>& matrix_list) {
+  if (matrix_list.empty()) { return std::vector<float>{}; }
+  assert(sizeof(matrix_list[0].a1) == 4);
+  const auto kMatrixNum = GetUint32(matrix_list.size());
+  const uint32_t kComponentNum = 16;
+  const auto kMatrixByteSize = GetUint32(sizeof(float)) * kComponentNum;
+  std::vector<float> float_list(kComponentNum * kMatrixNum);
+  for (uint32_t i = 0; i < kMatrixNum; i++) {
+    memcpy(float_list.data() + i * kComponentNum, &matrix_list[i].a1, kMatrixByteSize);
+  }
+  return float_list;
+}
+auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, const char* const filename_base, const char* const filename_option) {
+  const uint32_t kFilenameLen = 128;
+  char filename[kFilenameLen];
+  snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
+  std::ofstream output_file(filename, std::ios::out | std::ios::binary);
+  output_file.write(reinterpret_cast<const char*>(buffer), file_size_in_byte);
+}
+auto WriteBinaryData(const char* const filename, const FlattenedModelData& flattened_model_data) {
+  const auto transform_matrix_list_binary = GetFlattenedTransformList(flattened_model_data.transform_matrix_list);
+  OutputBinaryToFile(transform_matrix_list_binary.size() * sizeof(float), transform_matrix_list_binary.data(), filename, ".transform_matrix.bin");
+}
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
   using namespace modelconv;
+  const char* const filename = "donut2022.fbx";
   Assimp::Importer importer;
-  const auto scene = importer.ReadFile("donut2022.fbx",
+  const auto scene = importer.ReadFile(filename,
                                        aiProcess_MakeLeftHanded 
                                        | aiProcess_FlipWindingOrder 
                                        | aiProcess_Triangulate 
@@ -124,5 +153,6 @@ TEST_CASE("load model") {
   CHECK_EQ((scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE), 0);
   CHECK_UNARY(scene->HasMeshes());
   CHECK_NE(scene->mRootNode, nullptr);
-  FlattenModelDataPerDrawCall(scene);
+  auto [per_draw_call_model_index_set, flattened_model_data] = FlattenModelDataPerDrawCall(scene);
+  WriteBinaryData(filename, flattened_model_data);
 }
