@@ -117,8 +117,10 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
       vertex_buffer_bitangent.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
       vertex_buffer_texcoord.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 2);
       for (uint32_t j = 0; j < mesh->mNumVertices; j++) {
-        Push3Components(mesh->mVertices[j], &vertex_buffer_position);
-        Push3Components(mesh->mNormals[j],  &vertex_buffer_normal);
+        Push3Components(mesh->mVertices[j],   &vertex_buffer_position);
+        Push3Components(mesh->mNormals[j],    &vertex_buffer_normal);
+        Push3Components(mesh->mTangents[j],   &vertex_buffer_tangent);
+        Push3Components(mesh->mBitangents[j], &vertex_buffer_bitangent);
       }
       assert(vertex_buffer_position.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
       assert(vertex_buffer_normal.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
