@@ -172,6 +172,12 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, const char* const filename
   if (buffer.empty()) { return; }
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), filename_base, filename_option);
 }
+const char* kIndexBufferBinFileName           = ".index_buffer.bin";
+const char* kVertexBufferPositionBinFileName  = ".vertex_buffer_position.bin";
+const char* kVertexBufferNormalBinFileName    = ".vertex_buffer_normal.bin";
+const char* kVertexBufferTangentBinFileName   = ".vertex_buffer_tangent.bin";
+const char* kVertexBufferBitangentBinFileName = ".vertex_buffer_bitangent.bin";
+const char* kVertexBufferTexcoordBinFileName  = ".vertex_buffer_texcoord.bin";
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
@@ -211,12 +217,12 @@ TEST_CASE("load model") {
   }
   {
     auto [index_buffer, vertex_buffer_position, vertex_buffer_normal, vertex_buffer_tangent, vertex_buffer_bitangent, vertex_buffer_texcoord] = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
-    OutputBinaryToFile(index_buffer, filename, ".index_buffer.bin");
-    OutputBinaryToFile(vertex_buffer_position, filename, ".vertex_buffer_position.bin");
-    OutputBinaryToFile(vertex_buffer_normal, filename, ".vertex_buffer_normal.bin");
-    OutputBinaryToFile(vertex_buffer_tangent, filename, ".vertex_buffer_tangent.bin");
-    OutputBinaryToFile(vertex_buffer_bitangent, filename, ".vertex_buffer_bitangent.bin");
-    OutputBinaryToFile(vertex_buffer_texcoord, filename, ".vertex_buffer_texcoord.bin");
+    OutputBinaryToFile(index_buffer, filename, kIndexBufferBinFileName);
+    OutputBinaryToFile(vertex_buffer_position, filename, kVertexBufferPositionBinFileName);
+    OutputBinaryToFile(vertex_buffer_normal, filename, kVertexBufferNormalBinFileName);
+    OutputBinaryToFile(vertex_buffer_tangent, filename, kVertexBufferTangentBinFileName);
+    OutputBinaryToFile(vertex_buffer_bitangent, filename, kVertexBufferBitangentBinFileName);
+    OutputBinaryToFile(vertex_buffer_texcoord, filename, kVertexBufferTexcoordBinFileName);
     // TODO gather buffer size and filepath info
   }
 }
