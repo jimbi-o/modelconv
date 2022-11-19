@@ -74,19 +74,21 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     auto& per_mesh_data = (*per_draw_call_model_index_set)[i];
     per_mesh_data.index_buffer_offset = static_cast<uint32_t>(index_buffer.size());
     per_mesh_data.index_buffer_len    = mesh->mNumFaces * kTriangleVertexNum;
-    // push mesh index buffer
-    index_buffer.reserve(per_mesh_data.index_buffer_offset + per_mesh_data.index_buffer_len);
-    for (uint32_t j = 0; j < mesh->mNumFaces; j++) {
-      const auto& face = mesh->mFaces[j];
-      if (face.mNumIndices != kTriangleVertexNum) {
-        logerror("invalid face num", face.mNumIndices);
-        continue;
+    {
+      // push mesh index buffer
+      index_buffer.reserve(per_mesh_data.index_buffer_offset + per_mesh_data.index_buffer_len);
+      for (uint32_t j = 0; j < mesh->mNumFaces; j++) {
+        const auto& face = mesh->mFaces[j];
+        if (face.mNumIndices != kTriangleVertexNum) {
+          logerror("invalid face num", face.mNumIndices);
+          continue;
+        }
+        for (uint32_t k = 0; k < kTriangleVertexNum; k++) {
+          index_buffer.push_back(face.mIndices[k]);
+        }
       }
-      for (uint32_t k = 0; k < kTriangleVertexNum; k++) {
-        index_buffer.push_back(face.mIndices[k]);
-      }
+      assert(index_buffer.size() == per_mesh_data.index_buffer_offset + per_mesh_data.index_buffer_len);
     }
-    assert(index_buffer.size() == per_mesh_data.index_buffer_offset + per_mesh_data.index_buffer_len);
   }
   return index_buffer;
 }
