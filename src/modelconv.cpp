@@ -31,7 +31,7 @@ struct PerDrawCallModelIndexSet {
   std::vector<uint32_t> transform_matrix_index_list;
   uint32_t index_buffer_offset{0};
   uint32_t index_buffer_len{0};
-  uint32_t vertex_buffer_offset{0};
+  uint32_t vertex_buffer_index_offset{0};
 };
 auto GetUint32(const std::size_t s) {
   return static_cast<uint32_t>(s);
@@ -60,6 +60,9 @@ void PushTransformMatrix(const aiNode* node,
     PushTransformMatrix(node->mChildren[i], transform_index, transform, per_draw_call_model_index_set, transform_matrix_list);
   }
 }
+auto Push2Components(const aiVector3D& vertex, std::vector<float>* list) {
+  list->insert(list->end(), {vertex.x, vertex.y});
+}
 auto Push3Components(const aiVector3D& vertex, std::vector<float>* list) {
   list->insert(list->end(), {vertex.x, vertex.y, vertex.z});
 }
@@ -70,7 +73,6 @@ struct MeshBuffers {
   std::vector<float> vertex_buffer_tangent;
   std::vector<float> vertex_buffer_bitangent;
   std::vector<float> vertex_buffer_texcoord;
-  std::vector<float> vertex_buffer_color;
 };
 auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
                     std::vector<PerDrawCallModelIndexSet>* per_draw_call_model_index_set) {
@@ -80,7 +82,7 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
   std::vector<float> vertex_buffer_tangent;
   std::vector<float> vertex_buffer_bitangent;
   std::vector<float> vertex_buffer_texcoord;
-  std::vector<float> vertex_buffer_color;
+  uint32_t vertex_buffer_index_offset = 0;
   for (uint32_t i = 0; i < mesh_num; i++) {
     auto mesh = meshes[i];
     if (!mesh->HasFaces()) { continue; }
@@ -110,20 +112,31 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     }
     {
       // per mesh vertex buffer data
-      per_mesh_data.vertex_buffer_offset = static_cast<uint32_t>(vertex_buffer_position.size());
-      vertex_buffer_position.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
-      vertex_buffer_normal.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
-      vertex_buffer_tangent.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
-      vertex_buffer_bitangent.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
-      vertex_buffer_texcoord.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 2);
+      per_mesh_data.vertex_buffer_index_offset = vertex_buffer_index_offset;
+      vertex_buffer_index_offset += mesh->mNumVertices;
+      vertex_buffer_position.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      vertex_buffer_normal.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      vertex_buffer_tangent.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      vertex_buffer_bitangent.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      vertex_buffer_texcoord.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 2);
+      const auto valid_texcoord = (mesh->HasTextureCoords(0) && mesh->mNumUVComponents[0] == 2);
+      if (!valid_texcoord) {
+        logerror("invalid texcoord existance:{} component num:{}", mesh->HasTextureCoords(0), mesh->mNumUVComponents[0]);
+      }
       for (uint32_t j = 0; j < mesh->mNumVertices; j++) {
         Push3Components(mesh->mVertices[j],   &vertex_buffer_position);
         Push3Components(mesh->mNormals[j],    &vertex_buffer_normal);
         Push3Components(mesh->mTangents[j],   &vertex_buffer_tangent);
         Push3Components(mesh->mBitangents[j], &vertex_buffer_bitangent);
+        if (valid_texcoord) {
+          Push2Components(mesh->mTextureCoords[0][j], &vertex_buffer_texcoord);
+        }
       }
-      assert(vertex_buffer_position.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
-      assert(vertex_buffer_normal.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      assert(vertex_buffer_position.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      assert(vertex_buffer_normal.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      assert(vertex_buffer_tangent.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      assert(vertex_buffer_bitangent.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
+      assert(vertex_buffer_texcoord.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 2);
     }
   }
   return MeshBuffers{
@@ -133,7 +146,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     vertex_buffer_tangent,
     vertex_buffer_bitangent,
     vertex_buffer_texcoord,
-    vertex_buffer_color,
   };
 }
 auto GetFlattenedMatrixList(const std::vector<aiMatrix4x4>& matrix_list) {
@@ -198,14 +210,13 @@ TEST_CASE("load model") {
     OutputBinaryToFile(transform_matrix_list_binary, filename, ".transform_matrix.bin");
   }
   {
-    auto [index_buffer, vertex_buffer_position, vertex_buffer_normal, vertex_buffer_tangent, vertex_buffer_bitangent, vertex_buffer_texcoord, vertex_buffer_color] = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
+    auto [index_buffer, vertex_buffer_position, vertex_buffer_normal, vertex_buffer_tangent, vertex_buffer_bitangent, vertex_buffer_texcoord] = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
     OutputBinaryToFile(index_buffer, filename, ".index_buffer.bin");
     OutputBinaryToFile(vertex_buffer_position, filename, ".vertex_buffer_position.bin");
     OutputBinaryToFile(vertex_buffer_normal, filename, ".vertex_buffer_normal.bin");
     OutputBinaryToFile(vertex_buffer_tangent, filename, ".vertex_buffer_tangent.bin");
     OutputBinaryToFile(vertex_buffer_bitangent, filename, ".vertex_buffer_bitangent.bin");
     OutputBinaryToFile(vertex_buffer_texcoord, filename, ".vertex_buffer_texcoord.bin");
-    OutputBinaryToFile(vertex_buffer_color, filename, ".vertex_buffer_color.bin");
     // TODO gather buffer size and filepath info
   }
 }
