@@ -160,6 +160,12 @@ auto GetFlattenedMatrixList(const std::vector<aiMatrix4x4>& matrix_list) {
   }
   return float_list;
 }
+auto GetTransformMatrixList(aiNode* root_node, PerDrawCallModelIndexSet* per_draw_call_model_index_set) {
+  std::vector<aiMatrix4x4> transform_matrix_list;
+  aiMatrix4x4 transform_matrix;
+  PushTransformMatrix(root_node, kInvalidIndex, transform_matrix, per_draw_call_model_index_set, &transform_matrix_list);
+  return GetFlattenedMatrixList(std::move(transform_matrix_list));
+}
 auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, const char* const filename_base, const char* const filename_option) {
   const uint32_t kFilenameLen = 128;
   char filename[kFilenameLen];
@@ -178,6 +184,20 @@ const char* kVertexBufferNormalBinFileName    = ".vertex_buffer_normal.bin";
 const char* kVertexBufferTangentBinFileName   = ".vertex_buffer_tangent.bin";
 const char* kVertexBufferBitangentBinFileName = ".vertex_buffer_bitangent.bin";
 const char* kVertexBufferTexcoordBinFileName  = ".vertex_buffer_texcoord.bin";
+auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set,
+                           const std::vector<float>& transform_matrix_list,
+                           const MeshBuffers& mesh_buffers,
+                           const char* const filename_base) {
+  nlohmann::json json;
+  return json;
+}
+void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
+  const uint32_t kFilenameLen = 128;
+  char filename[kFilenameLen];
+  snprintf(filename, kFilenameLen, "%s%s", filename_base, ".json");
+  std::ofstream output_stream(filename);
+  output_stream << std::setw(2) << json << std::endl;
+}
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
@@ -207,22 +227,15 @@ TEST_CASE("load model") {
   CHECK_UNARY(scene->HasMeshes());
   CHECK_NE(scene->mRootNode, nullptr);
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
-  {
-    // output transform matrix binaries
-    std::vector<aiMatrix4x4> transform_matrix_list;
-    aiMatrix4x4 transform_matrix;
-    PushTransformMatrix(scene->mRootNode, kInvalidIndex, transform_matrix, per_draw_call_model_index_set.data(), &transform_matrix_list);
-    const auto transform_matrix_list_binary = GetFlattenedMatrixList(transform_matrix_list);
-    OutputBinaryToFile(transform_matrix_list_binary, filename, ".transform_matrix.bin");
-  }
-  {
-    auto [index_buffer, vertex_buffer_position, vertex_buffer_normal, vertex_buffer_tangent, vertex_buffer_bitangent, vertex_buffer_texcoord] = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
-    OutputBinaryToFile(index_buffer, filename, kIndexBufferBinFileName);
-    OutputBinaryToFile(vertex_buffer_position, filename, kVertexBufferPositionBinFileName);
-    OutputBinaryToFile(vertex_buffer_normal, filename, kVertexBufferNormalBinFileName);
-    OutputBinaryToFile(vertex_buffer_tangent, filename, kVertexBufferTangentBinFileName);
-    OutputBinaryToFile(vertex_buffer_bitangent, filename, kVertexBufferBitangentBinFileName);
-    OutputBinaryToFile(vertex_buffer_texcoord, filename, kVertexBufferTexcoordBinFileName);
-    // TODO gather buffer size and filepath info
-  }
+  const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
+  OutputBinaryToFile(transform_matrix_list, filename, ".transform_matrix.bin");
+  const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
+  OutputBinaryToFile(mesh_buffers.index_buffer, filename, kIndexBufferBinFileName);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_position, filename, kVertexBufferPositionBinFileName);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_normal, filename, kVertexBufferNormalBinFileName);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_tangent, filename, kVertexBufferTangentBinFileName);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_bitangent, filename, kVertexBufferBitangentBinFileName);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_texcoord, filename, kVertexBufferTexcoordBinFileName);
+  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, filename);
+  WriteOutJson(json, filename);
 }
