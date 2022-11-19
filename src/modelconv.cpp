@@ -143,9 +143,10 @@ TEST_CASE("load model") {
     aiMatrix4x4 transform_matrix;
     PushTransformMatrix(scene->mRootNode, kInvalidIndex, transform_matrix, per_draw_call_model_index_set.data(), &transform_matrix_list);
     const auto transform_matrix_list_binary = GetFlattenedMatrixList(transform_matrix_list);
-    OutputBinaryToFile(transform_matrix_list_binary.size() * sizeof(float), transform_matrix_list_binary.data(), filename, ".transform_matrix.bin");
+    OutputBinaryToFile(transform_matrix_list_binary.size() * sizeof(transform_matrix_list_binary[0]), transform_matrix_list_binary.data(), filename, ".transform_matrix.bin");
   }
   {
     auto index_buffer = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
+    OutputBinaryToFile(index_buffer.size() * sizeof(index_buffer[0]), index_buffer.data(), filename, ".index_buffer.bin");
   }
 }
