@@ -188,6 +188,13 @@ auto CreateJsonBinaryEntity(const std::size_t& list_entity_num, const std::size_
   json["filename"] = filename;
   return json;
 }
+template <typename T>
+auto CreateJsonBinaryEntity(const std::vector<T>& vector, const char* const filename_base, const char* const filename_option) {
+  if (vector.empty()) {
+    return CreateJsonBinaryEntity(0, 0,filename_base, filename_option);
+  }
+  return CreateJsonBinaryEntity(vector.size(), sizeof(vector[0]),filename_base, filename_option);
+}
 const char* kTransformMatrixBufferBinFileName = ".transform_matrix.bin";
 const char* kIndexBufferBinFileName           = ".index_buffer.bin";
 const char* kVertexBufferPositionBinFileName  = ".vertex_buffer_position.bin";
@@ -200,7 +207,7 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
                            const MeshBuffers& mesh_buffers,
                            const char* const filename_base) {
   nlohmann::json json;
-  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list.size(), sizeof(transform_matrix_list[0]), filename_base, kTransformMatrixBufferBinFileName);
+  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, filename_base, kTransformMatrixBufferBinFileName);
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
