@@ -178,6 +178,17 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, const char* const filename
   if (buffer.empty()) { return; }
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), filename_base, filename_option);
 }
+auto CreateJsonBinaryEntity(const std::size_t& list_entity_num, const std::size_t& per_entity_size_in_bytes, const char* const filename_base, const char* const filename_option) {
+  nlohmann::json json;
+  json["entity_num"] = list_entity_num;
+  json["per_entity_size_in_bytes"] = per_entity_size_in_bytes;
+  const uint32_t kFilenameLen = 128;
+  char filename[kFilenameLen];
+  snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
+  json["filename"] = filename;
+  return json;
+}
+const char* kTransformMatrixBufferBinFileName = ".transform_matrix.bin";
 const char* kIndexBufferBinFileName           = ".index_buffer.bin";
 const char* kVertexBufferPositionBinFileName  = ".vertex_buffer_position.bin";
 const char* kVertexBufferNormalBinFileName    = ".vertex_buffer_normal.bin";
@@ -189,6 +200,7 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
                            const MeshBuffers& mesh_buffers,
                            const char* const filename_base) {
   nlohmann::json json;
+  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list.size(), sizeof(transform_matrix_list[0]), filename_base, kTransformMatrixBufferBinFileName);
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
@@ -228,7 +240,7 @@ TEST_CASE("load model") {
   CHECK_NE(scene->mRootNode, nullptr);
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
-  OutputBinaryToFile(transform_matrix_list, filename, ".transform_matrix.bin");
+  OutputBinaryToFile(transform_matrix_list, filename, kTransformMatrixBufferBinFileName);
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
   OutputBinaryToFile(mesh_buffers.index_buffer, filename, kIndexBufferBinFileName);
   OutputBinaryToFile(mesh_buffers.vertex_buffer_position, filename, kVertexBufferPositionBinFileName);
