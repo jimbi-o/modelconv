@@ -60,6 +60,9 @@ void PushTransformMatrix(const aiNode* node,
     PushTransformMatrix(node->mChildren[i], transform_index, transform, per_draw_call_model_index_set, transform_matrix_list);
   }
 }
+auto Push3Components(const aiVector3D& vertex, std::vector<float>* list) {
+  list->insert(list->end(), {vertex.x, vertex.y, vertex.z});
+}
 struct MeshBuffers {
   std::vector<uint32_t> index_buffer;
   std::vector<float> vertex_buffer_position;
@@ -110,15 +113,12 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
       per_mesh_data.vertex_buffer_offset = static_cast<uint32_t>(vertex_buffer_position.size());
       vertex_buffer_position.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
       vertex_buffer_normal.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      vertex_buffer_tangent.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      vertex_buffer_bitangent.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      vertex_buffer_texcoord.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 2);
       for (uint32_t j = 0; j < mesh->mNumVertices; j++) {
-        {
-          const auto& vertex = mesh->mVertices[j];
-          vertex_buffer_position.insert(vertex_buffer_position.end(), {vertex.x, vertex.y, vertex.z});
-        }
-        {
-          const auto& normal = mesh->mNormals[j];
-          vertex_buffer_normal.insert(vertex_buffer_normal.end(), {normal.x, normal.y, normal.z});
-        }
+        Push3Components(mesh->mVertices[j], &vertex_buffer_position);
+        Push3Components(mesh->mNormals[j],  &vertex_buffer_normal);
       }
       assert(vertex_buffer_position.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
       assert(vertex_buffer_normal.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
