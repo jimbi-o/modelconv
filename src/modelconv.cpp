@@ -165,7 +165,7 @@ auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, cons
   char filename[kFilenameLen];
   snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
   std::ofstream output_file(filename, std::ios::out | std::ios::binary);
-  output_file.write(reinterpret_cast<const char*>(buffer), file_size_in_byte);
+  output_file.write(reinterpret_cast<const char*>(buffer), static_cast<std::streamsize>(file_size_in_byte));
 }
 template <typename T>
 auto OutputBinaryToFile(const std::vector<T>& buffer, const char* const filename_base, const char* const filename_option) {
