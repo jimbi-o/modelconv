@@ -14,6 +14,13 @@ CPMAddPackage(
   VERSION 5.2.5
   OPTIONS "ASSIMP_NO_EXPORT ON" "ASSIMP_BUILD_TESTS OFF" "ASSIMP_INSTALL OFF" "ASSIMP_BUILD_ASSIMP_VIEW OFF" "BUILD_SHARED_LIBS OFF"
 )
+CPMAddPackage(
+  NAME nlohmann_json
+  GITHUB_REPOSITORY "nlohmann/json"
+  VERSION 3.10.5
+  OPTIONS
+  "JSON_BuildTests OFF"
+)
 
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(${CMAKE_PROJECT_NAME})
@@ -41,6 +48,20 @@ target_include_directories(${PROJECT_NAME}
   PRIVATE
   "${assimp_SOURCE_DIR}/include"
   "${assimp_BINARY_DIR}/include"
+  "${nlohmann_json_SOURCE_DIR}/include"
+)
+target_precompile_headers(${CMAKE_PROJECT_NAME}
+  PRIVATE
+  <cstdint>
+  <type_traits>
+  <cstring>
+  <string>
+  <string_view>
+  "${assimp_SOURCE_DIR}/include/assimp/Importer.hpp"
+  "${assimp_SOURCE_DIR}/include/assimp/postprocess.h"
+  "${assimp_SOURCE_DIR}/include/assimp/scene.h"
+  "${nlohmann_json_SOURCE_DIR}/include/nlohmann/json.hpp"
+  "${spdlog_SOURCE_DIR}/include/spdlog/spdlog.h"
 )
 add_subdirectory(src)
 
