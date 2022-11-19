@@ -108,14 +108,20 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     {
       // per mesh vertex buffer data
       per_mesh_data.vertex_buffer_offset = static_cast<uint32_t>(vertex_buffer_position.size());
-      // position buffer
-      const uint32_t kPositionBufferComponentNum = 3;
-      vertex_buffer_position.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * kPositionBufferComponentNum);
+      vertex_buffer_position.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      vertex_buffer_normal.reserve(per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
       for (uint32_t j = 0; j < mesh->mNumVertices; j++) {
-        const auto& vertex = mesh->mVertices[j];
-        vertex_buffer_position.insert(vertex_buffer_position.end(), {vertex.x, vertex.y, vertex.z});
+        {
+          const auto& vertex = mesh->mVertices[j];
+          vertex_buffer_position.insert(vertex_buffer_position.end(), {vertex.x, vertex.y, vertex.z});
+        }
+        {
+          const auto& normal = mesh->mNormals[j];
+          vertex_buffer_normal.insert(vertex_buffer_normal.end(), {normal.x, normal.y, normal.z});
+        }
       }
-      assert(vertex_buffer_position.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * kPositionBufferComponentNum);
+      assert(vertex_buffer_position.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
+      assert(vertex_buffer_normal.size() == per_mesh_data.vertex_buffer_offset + mesh->mNumVertices * 3);
     }
   }
   return MeshBuffers{
