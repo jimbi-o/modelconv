@@ -234,28 +234,24 @@ template <typename T>
 auto GetVectorSizeInBytes(const std::vector<T>& vector) {
   return GetUint32(vector.size() * sizeof(vector[0]));
 }
-auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set,
-                           const std::vector<float>& transform_matrix_list,
-                           const MeshBuffers& mesh_buffers,
-                           const char* const binary_filename) {
+auto CreateJsonBinaryEntityList(const std::vector<float>& transform_matrix_list,
+                                const MeshBuffers& mesh_buffers) {
   nlohmann::json json;
-  json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
-  json["binary_info"]["filename"] = binary_filename;
   // call order to CreateJsonBinaryEntity must match that of OutputBinaryToFile
   uint32_t offset_in_bytes = 0;
-  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(transform_matrix_list);
-  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.index_buffer);
-  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, 3, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_position);
-  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, 3, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_normal);
-  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_tangent);
-  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, offset_in_bytes);
-  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_bitangent);
-  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, offset_in_bytes);
+  json["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(transform_matrix_list);
+  json["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.index_buffer);
+  json["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, 3, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_position);
+  json["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, 3, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_normal);
+  json["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_tangent);
+  json["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, offset_in_bytes);
+  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_bitangent);
+  json["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, offset_in_bytes);
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename) {
@@ -300,7 +296,11 @@ auto GetOutputFilePath(const char* const directory, const char* const filename) 
 } // namespace modelconv
 TEST_CASE("load model") {
   using namespace modelconv;
+#if 0
   const char* const filename = "donut2022.fbx";
+#else
+  const char* const filename = "glTF/BoomBoxWithAxes.gltf";
+#endif
   const char* const directory = "output";
   const auto basename_str = GetFilenameStem(filename);
   const auto basename = basename_str.c_str();
@@ -334,7 +334,10 @@ TEST_CASE("load model") {
   const auto output_directory = MergeStrings(directory, '/', basename);
   std::filesystem::create_directory(output_directory);
   OutputBinariesToFile(transform_matrix_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
-  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, binary_filename.c_str());
+  nlohmann::json json;
+  json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
+  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
+  json["binary_filename"] = binary_filename;
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
   WriteOutJson(json, json_filepath.c_str());
   // TODO textures
