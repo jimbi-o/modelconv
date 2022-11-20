@@ -256,10 +256,23 @@ void WriteOutJson(const nlohmann::json& json, const char* const filename) {
   std::ofstream output_stream(filename);
   output_stream << std::setw(2) << json << std::endl;
 }
-auto GetNameWithoutExtension(const char* const filename) {
+auto GetFilenameStem(const char* const filename) {
   std::string str(filename);
+  auto slash_pos = str.find_last_of('/');
   auto period_pos = str.find_last_of('.');
-  return str.substr(0, period_pos);
+  if (slash_pos == std::string::npos) {
+    slash_pos = 0;
+  } else {
+    slash_pos++;
+    if (slash_pos >= str.length()) {
+      logerror("invalid filename %s %d", str.c_str(), slash_pos);
+      slash_pos = str.length() - 1;
+    }
+  }
+  if (period_pos == std::string::npos) {
+    period_pos = str.length();
+  }
+  return str.substr(slash_pos, period_pos - slash_pos);
 }
 auto MergeStrings(const char* const str1, const char str2, const char* const str3) {
   const uint32_t kBufferLen = 128;
@@ -283,7 +296,7 @@ TEST_CASE("load model") {
   using namespace modelconv;
   const char* const filename = "donut2022.fbx";
   const char* const directory = "output";
-  const auto basename_str = GetNameWithoutExtension(filename);
+  const auto basename_str = GetFilenameStem(filename);
   const auto basename = basename_str.c_str();
   Assimp::Importer importer;
   const auto scene = importer.ReadFile(filename,
