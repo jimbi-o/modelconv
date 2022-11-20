@@ -32,6 +32,7 @@ struct PerDrawCallModelIndexSet {
   uint32_t index_buffer_offset{0};
   uint32_t index_buffer_len{0};
   uint32_t vertex_buffer_index_offset{0};
+  uint32_t vertex_num{0};
 };
 auto GetUint32(const std::size_t s) {
   return static_cast<uint32_t>(s);
@@ -113,6 +114,7 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     {
       // per mesh vertex buffer data
       per_mesh_data.vertex_buffer_index_offset = vertex_buffer_index_offset;
+      per_mesh_data.vertex_num = mesh->mNumVertices;
       vertex_buffer_index_offset += mesh->mNumVertices;
       vertex_buffer_position.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       vertex_buffer_normal.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
@@ -195,6 +197,24 @@ auto CreateJsonBinaryEntity(const std::vector<T>& vector, const char* const file
   }
   return CreateJsonBinaryEntity(vector.size(), sizeof(vector[0]),filename_base, filename_option);
 }
+auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set) {
+  auto json = nlohmann::json::array();
+  const auto mesh_num = per_draw_call_model_index_set.size();
+  for (uint32_t i = 0; i < mesh_num; i++) {
+    const auto& mesh = per_draw_call_model_index_set[i];
+    nlohmann::json elem;
+    elem["transform"] = nlohmann::json::array();
+    for (const auto& transform : mesh.transform_matrix_index_list) {
+      elem["transform"].push_back(transform);
+    }
+    elem["index_buffer_offset"] = mesh.index_buffer_offset;
+    elem["index_buffer_len"] = mesh.index_buffer_len;
+    elem["vertex_buffer_index_offset"] = mesh.vertex_buffer_index_offset;
+    elem["vertex_num"] = mesh.vertex_num;
+    json.emplace_back(std::move(elem));
+  }
+  return json;
+}
 const char* kTransformMatrixBufferBinFileName = ".transform_matrix.bin";
 const char* kIndexBufferBinFileName           = ".index_buffer.bin";
 const char* kVertexBufferPositionBinFileName  = ".vertex_buffer_position.bin";
@@ -207,13 +227,13 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
                            const MeshBuffers& mesh_buffers,
                            const char* const filename_base) {
   nlohmann::json json;
+  json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
   json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, filename_base, kTransformMatrixBufferBinFileName);
   json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, filename_base, kVertexBufferPositionBinFileName);
   json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, filename_base, kVertexBufferNormalBinFileName);
   json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, filename_base, kVertexBufferTangentBinFileName);
   json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, filename_base, kVertexBufferBitangentBinFileName);
   json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, filename_base, kVertexBufferTexcoordBinFileName);
-  // TODO
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
@@ -263,4 +283,5 @@ TEST_CASE("load model") {
   OutputBinaryToFile(mesh_buffers.vertex_buffer_texcoord, filename, kVertexBufferTexcoordBinFileName);
   auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, filename);
   WriteOutJson(json, filename);
+  // TODO textures
 }
