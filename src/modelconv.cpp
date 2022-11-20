@@ -176,12 +176,15 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, std::ofstream* ofstream) {
   if (buffer.empty()) { return; }
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), ofstream);
 }
-void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
-                          const MeshBuffers& mesh_buffers,
-                          const char* const filename_base) {
+auto GetOutputBinaryFileName(const char* const basename) {
   const uint32_t kFilenameLen = 128;
   char filename[kFilenameLen];
-  snprintf(filename, kFilenameLen, "%s.bin", filename_base);
+  snprintf(filename, kFilenameLen, "%s.bin", basename);
+  return std::string(filename);
+}
+void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
+                          const MeshBuffers& mesh_buffers,
+                          const char* const filename) {
   std::ofstream output_file(filename, std::ios::out | std::ios::binary);
   // call order to OutputBinaryToFile must match that of CreateJsonBinaryEntity
   OutputBinaryToFile(transform_matrix_list, &output_file);
@@ -232,9 +235,11 @@ auto GetVectorSizeInBytes(const std::vector<T>& vector) {
 }
 auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set,
                            const std::vector<float>& transform_matrix_list,
-                           const MeshBuffers& mesh_buffers) {
+                           const MeshBuffers& mesh_buffers,
+                           const char* const binary_filename) {
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
+  json["binary_info"]["filename"] = binary_filename;
   // call order to CreateJsonBinaryEntity must match that of OutputBinaryToFile
   uint32_t offset_in_bytes = 0;
   json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, offset_in_bytes);
@@ -297,8 +302,9 @@ TEST_CASE("load model") {
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
-  OutputBinariesToFile(transform_matrix_list, mesh_buffers, basename);
-  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers);
+  const auto binary_filename = GetOutputBinaryFileName(basename);
+  OutputBinariesToFile(transform_matrix_list, mesh_buffers, binary_filename.c_str());
+  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, binary_filename.c_str());
   WriteOutJson(json, basename);
   // TODO textures
 }
