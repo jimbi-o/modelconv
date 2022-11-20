@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -176,12 +177,6 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, std::ofstream* ofstream) {
   if (buffer.empty()) { return; }
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), ofstream);
 }
-auto GetOutputBinaryFileName(const char* const basename) {
-  const uint32_t kFilenameLen = 128;
-  char filename[kFilenameLen];
-  snprintf(filename, kFilenameLen, "%s.bin", basename);
-  return std::string(filename);
-}
 void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
                           const MeshBuffers& mesh_buffers,
                           const char* const filename) {
@@ -257,10 +252,7 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
   json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, offset_in_bytes);
   return json;
 }
-void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
-  const uint32_t kFilenameLen = 128;
-  char filename[kFilenameLen];
-  snprintf(filename, kFilenameLen, "%s%s", filename_base, ".json");
+void WriteOutJson(const nlohmann::json& json, const char* const filename) {
   std::ofstream output_stream(filename);
   output_stream << std::setw(2) << json << std::endl;
 }
@@ -269,11 +261,28 @@ auto GetNameWithoutExtension(const char* const filename) {
   auto period_pos = str.find_last_of('.');
   return str.substr(0, period_pos);
 }
+auto MergeStrings(const char* const str1, const char str2, const char* const str3) {
+  const uint32_t kBufferLen = 128;
+  char buffer[kBufferLen];
+  const auto result = snprintf(buffer, kBufferLen, "%s%c%s", str1, str2, str3);
+  if (result > 0 && result < kBufferLen) {
+    return std::string(buffer);
+  }
+  logerror("snprintf error:%d %s %s %s", result, str1, str2, str3);
+  return std::string();
+}
+auto GetOutputFilename(const char* const basename, const char* const extension) {
+  return MergeStrings(basename, '.', extension);
+}
+auto GetOutputFilePath(const char* const directory, const char* const filename) {
+  return MergeStrings(directory, '/', filename);
+}
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
   using namespace modelconv;
   const char* const filename = "donut2022.fbx";
+  const char* const directory = "output";
   const auto basename_str = GetNameWithoutExtension(filename);
   const auto basename = basename_str.c_str();
   Assimp::Importer importer;
@@ -302,9 +311,12 @@ TEST_CASE("load model") {
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
-  const auto binary_filename = GetOutputBinaryFileName(basename);
-  OutputBinariesToFile(transform_matrix_list, mesh_buffers, binary_filename.c_str());
+  const auto binary_filename = GetOutputFilename(basename, "bin");
+  const auto output_directory = MergeStrings(directory, '/', basename);
+  std::filesystem::create_directory(output_directory);
+  OutputBinariesToFile(transform_matrix_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
   auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, binary_filename.c_str());
-  WriteOutJson(json, basename);
+  const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
+  WriteOutJson(json, json_filepath.c_str());
   // TODO textures
 }
