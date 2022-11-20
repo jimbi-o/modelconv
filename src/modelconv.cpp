@@ -168,36 +168,45 @@ auto GetTransformMatrixList(aiNode* root_node, PerDrawCallModelIndexSet* per_dra
   PushTransformMatrix(root_node, kInvalidIndex, transform_matrix, per_draw_call_model_index_set, &transform_matrix_list);
   return GetFlattenedMatrixList(std::move(transform_matrix_list));
 }
-auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, const char* const filename_base, const char* const filename_option) {
-  const uint32_t kFilenameLen = 128;
-  char filename[kFilenameLen];
-  snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
-  std::ofstream output_file(filename, std::ios::out | std::ios::binary);
-  output_file.write(reinterpret_cast<const char*>(buffer), static_cast<std::streamsize>(file_size_in_byte));
+auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, std::ofstream* ofstream) {
+  ofstream->write(reinterpret_cast<const char*>(buffer), static_cast<std::streamsize>(file_size_in_byte));
 }
 template <typename T>
-auto OutputBinaryToFile(const std::vector<T>& buffer, const char* const filename_base, const char* const filename_option) {
+auto OutputBinaryToFile(const std::vector<T>& buffer, std::ofstream* ofstream) {
   if (buffer.empty()) { return; }
-  OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), filename_base, filename_option);
+  OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), ofstream);
 }
-auto CreateJsonBinaryEntity(const std::size_t& size_in_bytes, const std::size_t& stride_in_bytes, const char* const filename_base, const char* const filename_option) {
+void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
+                          const MeshBuffers& mesh_buffers,
+                          const char* const filename_base) {
+  const uint32_t kFilenameLen = 128;
+  char filename[kFilenameLen];
+  snprintf(filename, kFilenameLen, "%s.bin", filename_base);
+  std::ofstream output_file(filename, std::ios::out | std::ios::binary);
+  // call order to OutputBinaryToFile must match that of CreateJsonBinaryEntity
+  OutputBinaryToFile(transform_matrix_list, &output_file);
+  OutputBinaryToFile(mesh_buffers.index_buffer, &output_file);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_position, &output_file);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_normal, &output_file);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_tangent, &output_file);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_bitangent, &output_file);
+  OutputBinaryToFile(mesh_buffers.vertex_buffer_texcoord, &output_file);
+}
+auto CreateJsonBinaryEntity(const std::size_t& size_in_bytes, const std::size_t& stride_in_bytes, const uint32_t offset_in_bytes) {
   nlohmann::json json;
   json["size_in_bytes"] = size_in_bytes;
   json["stride_in_bytes"] = stride_in_bytes;
-  const uint32_t kFilenameLen = 128;
-  char filename[kFilenameLen];
-  snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
-  json["filename"] = filename;
+  json["offset_in_bytes"] = offset_in_bytes;
   return json;
 }
 template <typename T>
-auto CreateJsonBinaryEntity(const std::vector<T>& vector, const uint32_t component_num, const char* const filename_base, const char* const filename_option) {
+auto CreateJsonBinaryEntity(const std::vector<T>& vector, const uint32_t component_num, const uint32_t offset_in_bytes) {
   if (vector.empty()) {
-    return CreateJsonBinaryEntity(0, 0, filename_base, filename_option);
+    return CreateJsonBinaryEntity(0, 0, offset_in_bytes);
   }
   const auto element_num = vector.size();
   const auto per_node_size_in_bytes = sizeof(vector[0]);
-  return CreateJsonBinaryEntity(element_num * per_node_size_in_bytes, per_node_size_in_bytes * component_num, filename_base, filename_option);
+  return CreateJsonBinaryEntity(element_num * per_node_size_in_bytes, per_node_size_in_bytes * component_num, offset_in_bytes);
 }
 auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set) {
   auto json = nlohmann::json::array();
@@ -217,26 +226,30 @@ auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_m
   }
   return json;
 }
-const char* kTransformMatrixBufferBinFileName = ".transform_matrix.bin";
-const char* kIndexBufferBinFileName           = ".index_buffer.bin";
-const char* kVertexBufferPositionBinFileName  = ".vertex_buffer_position.bin";
-const char* kVertexBufferNormalBinFileName    = ".vertex_buffer_normal.bin";
-const char* kVertexBufferTangentBinFileName   = ".vertex_buffer_tangent.bin";
-const char* kVertexBufferBitangentBinFileName = ".vertex_buffer_bitangent.bin";
-const char* kVertexBufferTexcoordBinFileName  = ".vertex_buffer_texcoord.bin";
+template <typename T>
+auto GetVectorSizeInBytes(const std::vector<T>& vector) {
+  return GetUint32(vector.size() * sizeof(vector[0]));
+}
 auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set,
                            const std::vector<float>& transform_matrix_list,
-                           const MeshBuffers& mesh_buffers,
-                           const char* const filename_base) {
+                           const MeshBuffers& mesh_buffers) {
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
-  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, filename_base, kTransformMatrixBufferBinFileName);
-  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, filename_base, kIndexBufferBinFileName);
-  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, 3, filename_base, kVertexBufferPositionBinFileName);
-  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, 3, filename_base, kVertexBufferNormalBinFileName);
-  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, filename_base, kVertexBufferTangentBinFileName);
-  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, filename_base, kVertexBufferBitangentBinFileName);
-  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, filename_base, kVertexBufferTexcoordBinFileName);
+  // call order to CreateJsonBinaryEntity must match that of OutputBinaryToFile
+  uint32_t offset_in_bytes = 0;
+  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(transform_matrix_list);
+  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.index_buffer);
+  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, 3, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_position);
+  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, 3, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_normal);
+  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_tangent);
+  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, offset_in_bytes);
+  offset_in_bytes += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_bitangent);
+  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, offset_in_bytes);
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
@@ -246,11 +259,18 @@ void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
   std::ofstream output_stream(filename);
   output_stream << std::setw(2) << json << std::endl;
 }
+auto GetNameWithoutExtension(const char* const filename) {
+  std::string str(filename);
+  auto period_pos = str.find_last_of('.');
+  return str.substr(0, period_pos);
+}
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
   using namespace modelconv;
   const char* const filename = "donut2022.fbx";
+  const auto basename_str = GetNameWithoutExtension(filename);
+  const auto basename = basename_str.c_str();
   Assimp::Importer importer;
   const auto scene = importer.ReadFile(filename,
                                        aiProcess_MakeLeftHanded 
@@ -276,15 +296,9 @@ TEST_CASE("load model") {
   CHECK_NE(scene->mRootNode, nullptr);
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
-  OutputBinaryToFile(transform_matrix_list, filename, kTransformMatrixBufferBinFileName);
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
-  OutputBinaryToFile(mesh_buffers.index_buffer, filename, kIndexBufferBinFileName);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_position, filename, kVertexBufferPositionBinFileName);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_normal, filename, kVertexBufferNormalBinFileName);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_tangent, filename, kVertexBufferTangentBinFileName);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_bitangent, filename, kVertexBufferBitangentBinFileName);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_texcoord, filename, kVertexBufferTexcoordBinFileName);
-  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers, filename);
-  WriteOutJson(json, filename);
+  OutputBinariesToFile(transform_matrix_list, mesh_buffers, basename);
+  auto json = CreatePerDrawCallJson(per_draw_call_model_index_set, transform_matrix_list, mesh_buffers);
+  WriteOutJson(json, basename);
   // TODO textures
 }
