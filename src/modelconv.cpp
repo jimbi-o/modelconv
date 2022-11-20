@@ -180,10 +180,10 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, const char* const filename
   if (buffer.empty()) { return; }
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), filename_base, filename_option);
 }
-auto CreateJsonBinaryEntity(const std::size_t& list_entity_num, const std::size_t& per_entity_size_in_bytes, const char* const filename_base, const char* const filename_option) {
+auto CreateJsonBinaryEntity(const std::size_t& size_in_bytes, const std::size_t& stride_in_bytes, const char* const filename_base, const char* const filename_option) {
   nlohmann::json json;
-  json["entity_num"] = list_entity_num;
-  json["per_entity_size_in_bytes"] = per_entity_size_in_bytes;
+  json["size_in_bytes"] = size_in_bytes;
+  json["stride_in_bytes"] = stride_in_bytes;
   const uint32_t kFilenameLen = 128;
   char filename[kFilenameLen];
   snprintf(filename, kFilenameLen, "%s%s", filename_base, filename_option);
@@ -191,11 +191,13 @@ auto CreateJsonBinaryEntity(const std::size_t& list_entity_num, const std::size_
   return json;
 }
 template <typename T>
-auto CreateJsonBinaryEntity(const std::vector<T>& vector, const char* const filename_base, const char* const filename_option) {
+auto CreateJsonBinaryEntity(const std::vector<T>& vector, const uint32_t component_num, const char* const filename_base, const char* const filename_option) {
   if (vector.empty()) {
-    return CreateJsonBinaryEntity(0, 0,filename_base, filename_option);
+    return CreateJsonBinaryEntity(0, 0, filename_base, filename_option);
   }
-  return CreateJsonBinaryEntity(vector.size(), sizeof(vector[0]),filename_base, filename_option);
+  const auto element_num = vector.size();
+  const auto per_node_size_in_bytes = sizeof(vector[0]);
+  return CreateJsonBinaryEntity(element_num * per_node_size_in_bytes, per_node_size_in_bytes * component_num, filename_base, filename_option);
 }
 auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set) {
   auto json = nlohmann::json::array();
@@ -228,13 +230,13 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
                            const char* const filename_base) {
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
-  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, filename_base, kTransformMatrixBufferBinFileName);
-  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, filename_base, kIndexBufferBinFileName);
-  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, filename_base, kVertexBufferPositionBinFileName);
-  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, filename_base, kVertexBufferNormalBinFileName);
-  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, filename_base, kVertexBufferTangentBinFileName);
-  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, filename_base, kVertexBufferBitangentBinFileName);
-  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, filename_base, kVertexBufferTexcoordBinFileName);
+  json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, filename_base, kTransformMatrixBufferBinFileName);
+  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, filename_base, kIndexBufferBinFileName);
+  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, 3, filename_base, kVertexBufferPositionBinFileName);
+  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, 3, filename_base, kVertexBufferNormalBinFileName);
+  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, filename_base, kVertexBufferTangentBinFileName);
+  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, filename_base, kVertexBufferBitangentBinFileName);
+  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, filename_base, kVertexBufferTexcoordBinFileName);
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
