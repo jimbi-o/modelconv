@@ -292,6 +292,28 @@ auto GetOutputFilename(const char* const basename, const char* const extension) 
 auto GetOutputFilePath(const char* const directory, const char* const filename) {
   return MergeStrings(directory, '/', filename);
 }
+auto GetShadingMode(const aiMaterial& material) {
+  int32_t shading_mode;
+  if (const auto result = material.Get(AI_MATKEY_SHADING_MODEL, shading_mode); result != AI_SUCCESS) {
+    logerror("failed to retrieve AI_MATKEY_SHADING_MODEL %d", result);
+    return 0;
+  }
+  return shading_mode;
+}
+auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * const * const materials) {
+  nlohmann::json json;
+  for (uint32_t i = 0; i < material_num; i++) {
+    const auto& material = *(materials[i]);
+    nlohmann::json material_json;
+    if (const auto shading_mode = GetShadingMode(material); shading_mode != aiShadingMode_PBR_BRDF) {
+      logwarn("only pbr/brdf is loaded so far. %d", shading_mode);
+      continue;
+    }
+    // TODO
+    json.emplace_back(std::move(material_json));
+  }
+  return json;
+}
 } // namespace anonymous
 } // namespace modelconv
 TEST_CASE("load model") {
@@ -338,7 +360,7 @@ TEST_CASE("load model") {
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
   json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
   json["binary_filename"] = binary_filename;
+  json["materials"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials);
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
   WriteOutJson(json, json_filepath.c_str());
-  // TODO textures
 }
