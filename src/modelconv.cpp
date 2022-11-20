@@ -34,6 +34,7 @@ struct PerDrawCallModelIndexSet {
   uint32_t index_buffer_len{0};
   uint32_t vertex_buffer_index_offset{0};
   uint32_t vertex_num{0};
+  uint32_t material_index{0};
 };
 auto GetUint32(const std::size_t s) {
   return static_cast<uint32_t>(s);
@@ -141,6 +142,10 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
       assert(vertex_buffer_bitangent.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       assert(vertex_buffer_texcoord.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 2);
     }
+    {
+      // per mesh material
+      per_mesh_data.material_index = mesh->mMaterialIndex;
+    }
   }
   return MeshBuffers{
     index_buffer,
@@ -220,6 +225,7 @@ auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_m
     elem["index_buffer_len"] = mesh.index_buffer_len;
     elem["vertex_buffer_index_offset"] = mesh.vertex_buffer_index_offset;
     elem["vertex_num"] = mesh.vertex_num;
+    elem["material_index"] = mesh.material_index;
     json.emplace_back(std::move(elem));
   }
   return json;
