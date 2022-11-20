@@ -229,6 +229,7 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
   json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, filename_base, kTransformMatrixBufferBinFileName);
+  json["binary_info"]["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, filename_base, kIndexBufferBinFileName);
   json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, filename_base, kVertexBufferPositionBinFileName);
   json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, filename_base, kVertexBufferNormalBinFileName);
   json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, filename_base, kVertexBufferTangentBinFileName);
