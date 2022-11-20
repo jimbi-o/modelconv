@@ -208,6 +208,12 @@ auto CreatePerDrawCallJson(const std::vector<PerDrawCallModelIndexSet>& per_draw
                            const char* const filename_base) {
   nlohmann::json json;
   json["binary_info"]["transform"] = CreateJsonBinaryEntity(transform_matrix_list, filename_base, kTransformMatrixBufferBinFileName);
+  json["binary_info"]["position"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_position, filename_base, kVertexBufferPositionBinFileName);
+  json["binary_info"]["normal"]    = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_normal, filename_base, kVertexBufferNormalBinFileName);
+  json["binary_info"]["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, filename_base, kVertexBufferTangentBinFileName);
+  json["binary_info"]["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, filename_base, kVertexBufferBitangentBinFileName);
+  json["binary_info"]["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, filename_base, kVertexBufferTexcoordBinFileName);
+  // TODO
   return json;
 }
 void WriteOutJson(const nlohmann::json& json, const char* const filename_base) {
