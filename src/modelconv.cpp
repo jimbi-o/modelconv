@@ -1,8 +1,8 @@
 #include "modelconv/modelconv.h"
 #include <cassert>
 #include <cstdio>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -300,16 +300,60 @@ auto GetShadingMode(const aiMaterial& material) {
   }
   return shading_mode;
 }
+auto GetMaterialVal(const aiMaterial& material, const char * const key, const uint32_t type, const uint32_t idx, const std::vector<float>& default_val) {
+  std::vector<float> val(default_val);
+  if (const auto result = material.Get(key, type, idx, val); result != AI_SUCCESS) {
+    logwarn("material: failed to get %s %d %d %d", key, type, idx, result);
+  }
+  return val;
+}
+auto GetMaterialVal(const aiMaterial& material, const char * const key, const uint32_t type, const uint32_t idx, const float default_val) {
+  float val{default_val};
+  if (const auto result = material.Get(key, type, idx, val); result != AI_SUCCESS) {
+    logwarn("material: failed to get %s %d %d %d", key, type, idx, result);
+  }
+  return val;
+}
+auto GetTexturePath(const aiMaterial& material, const aiTextureType texture_type) {
+  if (material.GetTextureCount(texture_type) == 0) { return std::string(); }
+  if (material.GetTextureCount(texture_type) > 1) {
+    logwarn("multiple texture not implemented %d", texture_type);
+    return std::string();
+  }
+  aiString str;
+  if (const auto result = material.GetTexture(texture_type, 0, &str); result != AI_SUCCESS) {
+    return std::string();
+  }
+  return std::string(str.C_Str());
+}
 auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * const * const materials) {
   nlohmann::json json;
   for (uint32_t i = 0; i < material_num; i++) {
     const auto& material = *(materials[i]);
     nlohmann::json material_json;
     if (const auto shading_mode = GetShadingMode(material); shading_mode != aiShadingMode_PBR_BRDF) {
-      logwarn("only pbr/brdf is loaded so far. %d", shading_mode);
+      logwarn("only pbr/brdf is processed so far. %d", shading_mode);
       continue;
     }
-    // TODO
+    material_json["albedo"]["factor"] = GetMaterialVal(material, AI_MATKEY_BASE_COLOR, {1.0f, 1.0f, 1.0f});
+    if (const auto texture = GetTexturePath(material, aiTextureType_BASE_COLOR); !texture.empty()) {
+      material_json["albedo"]["texture"] = texture;
+    }
+    if (const auto texture = GetTexturePath(material, aiTextureType_NORMAL_CAMERA); !texture.empty()) {
+      material_json["normal"]["texture"] = texture;
+    }
+    if (const auto texture = GetTexturePath(material, aiTextureType_EMISSION_COLOR); !texture.empty()) {
+      material_json["emissive"]["texture"] = texture;
+    }
+    if (const auto texture = GetTexturePath(material, aiTextureType_METALNESS); !texture.empty()) {
+      material_json["metalness"]["texture"] = texture;
+    }
+    if (const auto texture = GetTexturePath(material, aiTextureType_DIFFUSE_ROUGHNESS); !texture.empty()) {
+      material_json["roughness"]["texture"] = texture;
+    }
+    if (const auto texture = GetTexturePath(material, aiTextureType_AMBIENT_OCCLUSION); !texture.empty()) {
+      material_json["ao"]["texture"] = texture;
+    }
     json.emplace_back(std::move(material_json));
   }
   return json;
@@ -342,7 +386,6 @@ TEST_CASE("load model") {
                                        | aiProcess_TransformUVCoords
                                        | aiProcess_FindInstances
                                        | aiProcess_Debone
-                                       | aiProcess_EmbedTextures
                                        | aiProcess_RemoveRedundantMaterials);
   // consider using meshoptimizer (https://github.com/zeux/meshoptimizer) for mesh optimizations.
   CHECK_NE(scene, nullptr);
