@@ -53,10 +53,16 @@ target_include_directories(${PROJECT_NAME}
 target_precompile_headers(${CMAKE_PROJECT_NAME}
   PRIVATE
   <cstdint>
-  <type_traits>
+  <cstdio>
   <cstring>
+  <filesystem>
+  <fstream>
+  <iostream>
   <string>
   <string_view>
+  <type_traits>
+  <utility>
+  <vector>
   "${assimp_SOURCE_DIR}/include/assimp/Importer.hpp"
   "${assimp_SOURCE_DIR}/include/assimp/postprocess.h"
   "${assimp_SOURCE_DIR}/include/assimp/scene.h"
