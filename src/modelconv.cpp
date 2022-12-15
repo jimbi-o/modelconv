@@ -390,7 +390,7 @@ auto GetTexture(const aiMaterial& material, const aiTextureType texture_type, st
   }
   aiUVTransform transform{};
   if (const auto result = material.Get(AI_MATKEY_UVTRANSFORM(texture_type, slot), transform); result == AI_SUCCESS) {
-    // TODO
+    // not needed so far.
   }
   uint32_t mag_filter{};
   uint32_t min_filter{};
