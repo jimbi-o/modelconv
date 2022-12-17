@@ -330,6 +330,10 @@ auto GetMaterialStrVal(const aiMaterial& material, const char * const key, const
   }
   return std::string(val.data);
 }
+struct Texture {
+  aiTextureType texture_type{static_cast<aiTextureType>(-1)};
+  std::string path;
+};
 struct Sampler {
   static const uint32_t kMapModeNum = 3;
   aiTextureMapMode mapmode[kMapModeNum];
@@ -356,6 +360,23 @@ bool IsMapModeIdentical(const aiTextureMapMode* a, const aiTextureMapMode* b) {
   }
   return true;
 }
+const uint32_t kInvalidTexture = ~0U;
+auto GetTextureIndex(const aiTextureType texture_type, const char* const path, const std::vector<Texture>& textures) {
+  const auto count = GetUint32(textures.size());
+  for (uint32_t i = 0; i < count; i++) {
+    const auto& texture = textures[i];
+    if (texture_type != texture.texture_type) { continue; }
+    if (strcmp(path, texture.path.c_str()) != 0) { continue; }
+    return i;
+  }
+  return kInvalidTexture;
+}
+constexpr auto CreateTexture(const aiTextureType texture_type, const char* const path) {
+  return Texture{
+    .texture_type = texture_type,
+    .path = path,
+  };
+}
 const uint32_t kInvalidSampler = ~0U;
 auto GetSamplerIndex(const aiTextureMapMode mapmode[3], const uint32_t mag_filter, const uint32_t min_filter, const std::vector<Sampler>& samplers) {
   const auto count = GetUint32(samplers.size());
@@ -375,6 +396,22 @@ constexpr auto CreateSampler(const aiTextureMapMode mapmode[3], const uint32_t m
     .min_filter = min_filter,
   };
 }
+auto FindOrCreateTexture(const aiTextureType texture_type, const char* const path, std::vector<Texture>* textures) {
+  if (const auto texture_index = GetTextureIndex(texture_type, path, *textures); texture_index != kInvalidTexture) {
+    return texture_index;
+  }
+  const auto texture_index = GetUint32(textures->size());
+  textures->push_back(CreateTexture(texture_type, path));
+  return texture_index;
+}
+auto FindOrCreateSampler(const aiTextureMapMode mapmode[3], const uint32_t mag_filter, const uint32_t min_filter, std::vector<Sampler>* samplers) {
+  if (const auto sampler_index = GetSamplerIndex(mapmode, mag_filter, min_filter, *samplers); sampler_index != kInvalidSampler) {
+    return sampler_index;
+  }
+  const auto sampler_index = GetUint32(samplers->size());
+  samplers->push_back(CreateSampler(mapmode, mag_filter, min_filter));
+  return sampler_index;
+}
 const uint32_t SamplerFilter_UNSET = 0;
 const uint32_t SamplerMagFilter_Nearest = 9728;
 const uint32_t SamplerMagFilter_Linear = 9729;
@@ -384,36 +421,33 @@ const uint32_t SamplerMinFilter_Nearest_Mipmap_Nearest = 9984;
 const uint32_t SamplerMinFilter_Linear_Mipmap_Nearest = 9985;
 const uint32_t SamplerMinFilter_Nearest_Mipmap_Linear = 9986;
 const uint32_t SamplerMinFilter_Linear_Mipmap_Linear = 9987;
-auto CreateDefaultMaterial(const aiTextureType texture_type, std::vector<Sampler>* samplers) {
+auto CreateDefaultMaterial(const aiTextureType texture_type, std::vector<Texture>* textures, std::vector<Sampler>* samplers) {
   nlohmann::json texture_json;
   switch (texture_type) {
     case aiTextureType_UNKNOWN: // occulusion-metallic-roughness
-      texture_json["default"] = "yellow";
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_UNKNOWN, "yellow.png", textures);
       break;
     case aiTextureType_BASE_COLOR:
-      texture_json["default"] = "white";
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_BASE_COLOR, "white.png", textures);
       break;
     case aiTextureType_NORMALS:
-      texture_json["default"] = "normal";
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_NORMALS, "normal.png", textures);
       break;
     case aiTextureType_EMISSIVE:
-      texture_json["default"] = "black";
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_EMISSIVE, "black.png", textures);
       break;
   }
-  aiTextureMapMode mapmode[3] = {aiTextureMapMode_Wrap, aiTextureMapMode_Wrap, static_cast<aiTextureMapMode>(-1)};
-  auto sampler_index = GetSamplerIndex(mapmode, SamplerMagFilter_Linear, SamplerMinFilter_Linear_Mipmap_Linear, *samplers);
-  if (sampler_index == kInvalidSampler) {
-    sampler_index = GetUint32(samplers->size());
-    samplers->push_back(CreateSampler(mapmode, SamplerMagFilter_Linear, SamplerMinFilter_Linear_Mipmap_Linear));
-  }
-  texture_json["sampler"] = sampler_index;
+  const aiTextureMapMode mapmode[] = {aiTextureMapMode_Wrap, aiTextureMapMode_Wrap, static_cast<aiTextureMapMode>(-1)};
+  texture_json["sampler"] = FindOrCreateSampler(mapmode, SamplerMagFilter_Linear, SamplerMinFilter_Linear_Mipmap_Linear, samplers);
   return texture_json;
 }
-auto GetTexture(const aiMaterial& material, const aiTextureType texture_type, std::vector<Sampler>* samplers) {
-  if (material.GetTextureCount(texture_type) == 0) { return CreateDefaultMaterial(texture_type, samplers); }
+auto GetTexture(const aiMaterial& material, const aiTextureType texture_type, std::vector<Texture>* textures, std::vector<Sampler>* samplers) {
+  if (material.GetTextureCount(texture_type) == 0) {
+    return CreateDefaultMaterial(texture_type, textures, samplers);
+  }
   if (material.GetTextureCount(texture_type) > 1) {
     logwarn("multiple texture not implemented {}", texture_type);
-    return CreateDefaultMaterial(texture_type, samplers);
+    return CreateDefaultMaterial(texture_type, textures, samplers);
   }
   aiString path;
   aiTextureMapping mapping;
@@ -422,17 +456,19 @@ auto GetTexture(const aiMaterial& material, const aiTextureType texture_type, st
   aiTextureOp op;
   aiTextureMapMode mapmode[3];
   const uint32_t slot = 0;
-  if (const auto result = material.GetTexture(texture_type, slot, &path, &mapping, &uvindex, &blend, &op, mapmode); result != AI_SUCCESS) { return CreateDefaultMaterial(texture_type, samplers); }
-  nlohmann::json texture_json;
-  texture_json["path"] = path.C_Str();
+  if (const auto result = material.GetTexture(texture_type, slot, &path, &mapping, &uvindex, &blend, &op, mapmode); result != AI_SUCCESS) {
+    return CreateDefaultMaterial(texture_type, textures, samplers);
+  }
   if (mapping != aiTextureMapping::aiTextureMapping_UV) {
     logerror("only uv mapping is supported {}", mapping);
-    return CreateDefaultMaterial(texture_type, samplers);
+    return CreateDefaultMaterial(texture_type, textures, samplers);
   }
   if (uvindex != 0) {
     logerror("only uv 0 supported so far. {}", uvindex);
-    return CreateDefaultMaterial(texture_type, samplers);
+    return CreateDefaultMaterial(texture_type, textures, samplers);
   }
+  nlohmann::json texture_json;
+  texture_json["texture"] = FindOrCreateTexture(texture_type, path.C_Str(), textures);
   aiUVTransform transform{};
   if (const auto result = material.Get(AI_MATKEY_UVTRANSFORM(texture_type, slot), transform); result == AI_SUCCESS) {
     // not needed so far.
@@ -441,12 +477,7 @@ auto GetTexture(const aiMaterial& material, const aiTextureType texture_type, st
   uint32_t min_filter{SamplerMinFilter_Linear_Mipmap_Linear};
   material.Get(AI_MATKEY_GLTF_MAPPINGFILTER_MAG(texture_type, slot), mag_filter);
   material.Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(texture_type, slot), min_filter);
-  auto sampler_index = GetSamplerIndex(mapmode, mag_filter, min_filter, *samplers);
-  if (sampler_index == kInvalidSampler) {
-    sampler_index = GetUint32(samplers->size());
-    samplers->push_back(CreateSampler(mapmode, mag_filter, min_filter));
-  }
-  texture_json["sampler"] = sampler_index;
+  texture_json["sampler"] = FindOrCreateSampler(mapmode, mag_filter, min_filter, samplers);
   return texture_json;
 }
 std::string GetMapMode(const aiTextureMapMode mapmode) {
@@ -515,6 +546,29 @@ std::string GetMipFilter(const uint32_t min_filter) {
   logerror("invalid value for mip filter {}", min_filter);
   return "linear";
 }
+auto CreateTextureJson(const std::vector<Texture>& textures) {
+  auto json = nlohmann::json::array();
+  for (const auto& t : textures) {
+    nlohmann::json j;
+    switch (t.texture_type) {
+      case aiTextureType_UNKNOWN: // occulusion-metallic-roughness
+        j["type"] = "occulusion-metallic-roughness";
+        break;
+      case aiTextureType_BASE_COLOR:
+        j["type"] = "albedo";
+        break;
+      case aiTextureType_NORMALS:
+        j["type"] = "normal";
+        break;
+      case aiTextureType_EMISSIVE:
+        j["type"] = "emissive";
+        break;
+    }
+    j["path"] = t.path;
+    json.emplace_back(std::move(j));
+  }
+  return json;
+}
 auto CreateSamplerJson(const std::vector<Sampler>& samplers) {
   auto json = nlohmann::json::array();
   for (const auto& s : samplers) {
@@ -534,6 +588,7 @@ auto CreateSamplerJson(const std::vector<Sampler>& samplers) {
 }
 auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * const * const materials, const bool is_gltf) {
   auto json = nlohmann::json::array();
+  std::vector<Texture> textures;
   std::vector<Sampler> samplers;
   for (uint32_t i = 0; i < material_num; i++) {
     const auto& material = *(materials[i]);
@@ -545,12 +600,12 @@ auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * cons
     // assimp/code/AssetLib/glTF2/glTF2Asset.h Material
     // assimp/code/AssetLib/glTF2/glTF2Importer.cpp ImportMaterial
     {
-      material_json["albedo"]["texture"] = GetTexture(material, aiTextureType_BASE_COLOR, &samplers);
+      material_json["albedo"]["texture"] = GetTexture(material, aiTextureType_BASE_COLOR, &textures, &samplers);
       material_json["albedo"]["factor"]  = GetMaterialVal(material, AI_MATKEY_BASE_COLOR, {1.0f, 1.0f, 1.0f, 1.0f});
     }
     // https://github.com/sbtron/glTF/blob/30de0b365d1566b1bbd8b9c140f9e995d3203226/specification/2.0/README.md#pbrmetallicroughnessmetallicroughnesstexture
     if (is_gltf) {
-      auto texture = GetTexture(material, aiTextureType_UNKNOWN /*=AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE*/, &samplers);
+      auto texture = GetTexture(material, aiTextureType_UNKNOWN /*=AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_METALLICROUGHNESS_TEXTURE*/, &textures, &samplers);
       material_json["occlusion"]["texture"] = texture;
       material_json["occlusion"]["texture"]["channel"] = 0; // for R channel
       material_json["occlusion"]["strength"] = GetMaterialVal(material, AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_LIGHTMAP, 0), 1.0f);
@@ -567,11 +622,11 @@ auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * cons
       assert(false);
     }
     {
-      material_json["normal"]["texture"] = GetTexture(material, aiTextureType_NORMALS, &samplers);
+      material_json["normal"]["texture"] = GetTexture(material, aiTextureType_NORMALS, &textures, &samplers);
       material_json["normal"]["scale"]   = GetMaterialVal(material, AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), 1.0f);
     }
     {
-      material_json["emissive"]["texture"] = GetTexture(material, aiTextureType_EMISSIVE, &samplers);
+      material_json["emissive"]["texture"] = GetTexture(material, aiTextureType_EMISSIVE, &textures, &samplers);
       material_json["emissive"]["factor"]  = GetMaterialVal(material, AI_MATKEY_COLOR_EMISSIVE, {1.0f, 1.0f, 1.0f, 1.0f});
     }
     material_json["double_sided"] = GetMaterialVal(material, AI_MATKEY_TWOSIDED, false);
@@ -581,6 +636,7 @@ auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * cons
   }
   nlohmann::json ret;
   ret["materials"] = std::move(json);
+  ret["textures"] = CreateTextureJson(textures);
   ret["samplers"] = CreateSamplerJson(samplers);
   return ret;
 }
