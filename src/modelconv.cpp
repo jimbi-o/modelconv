@@ -641,6 +641,48 @@ auto CreateJsonMaterialList(const uint32_t material_num, const aiMaterial * cons
   return ret;
 }
 } // namespace anonymous
+void OutputToDirectory(const char* const input_filepath, const char* const output_dir_root) {
+  using namespace modelconv;
+  const auto basename_str = GetFilenameStem(input_filepath);
+  const auto basename = basename_str.c_str();
+  Assimp::Importer importer;
+  const auto scene = importer.ReadFile(input_filepath,
+                                       aiProcess_MakeLeftHanded 
+                                       | aiProcess_FlipWindingOrder 
+                                       | aiProcess_Triangulate 
+                                       | aiProcess_CalcTangentSpace
+                                       | aiProcess_JoinIdenticalVertices
+                                       | aiProcess_ValidateDataStructure
+                                       | aiProcess_FixInfacingNormals
+                                       | aiProcess_SortByPType
+                                       | aiProcess_GenSmoothNormals
+                                       | aiProcess_FindInvalidData
+                                       | aiProcess_GenUVCoords
+                                       | aiProcess_TransformUVCoords
+                                       | aiProcess_FindInstances
+                                       | aiProcess_Debone
+                                       | aiProcess_RemoveRedundantMaterials);
+  // consider using meshoptimizer (https://github.com/zeux/meshoptimizer) for mesh optimizations.
+  if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 || !scene->HasMeshes() || scene->mRootNode == nullptr) {
+    logerror("failed to load scene. {}", input_filepath);
+    return;
+  }
+  std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
+  const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
+  const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
+  const auto binary_filename = GetOutputFilename(basename, "bin");
+  const auto output_directory = MergeStrings(output_dir_root, '/', basename);
+  std::filesystem::create_directory(output_directory);
+  OutputBinariesToFile(transform_matrix_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
+  nlohmann::json json;
+  json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
+  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
+  json["binary_filename"] = binary_filename;
+  json["material_settings"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials, true);
+  json["output_directory"] = output_directory;
+  const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
+  WriteOutJson(json, json_filepath.c_str());
+}
 } // namespace modelconv
 #include "doctest/doctest.h"
 TEST_CASE("load model") {
@@ -670,7 +712,6 @@ TEST_CASE("load model") {
                                        | aiProcess_FindInstances
                                        | aiProcess_Debone
                                        | aiProcess_RemoveRedundantMaterials);
-  // consider using meshoptimizer (https://github.com/zeux/meshoptimizer) for mesh optimizations.
   CHECK_NE(scene, nullptr);
   CHECK_EQ((scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE), 0);
   CHECK_UNARY(scene->HasMeshes());
@@ -689,4 +730,7 @@ TEST_CASE("load model") {
   json["material_settings"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials, true);
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
   WriteOutJson(json, json_filepath.c_str());
+}
+TEST_CASE("interface test") {
+  modelconv::OutputToDirectory("glTF/BoomBoxWithAxes.gltf", "output");
 }
