@@ -425,16 +425,16 @@ auto CreateDefaultMaterial(const aiTextureType texture_type, std::vector<Texture
   nlohmann::json texture_json;
   switch (texture_type) {
     case aiTextureType_UNKNOWN: // occulusion-metallic-roughness
-      texture_json["texture"] = FindOrCreateTexture(aiTextureType_UNKNOWN, "yellow.png", textures);
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_UNKNOWN, "yellow", textures);
       break;
     case aiTextureType_BASE_COLOR:
-      texture_json["texture"] = FindOrCreateTexture(aiTextureType_BASE_COLOR, "white.png", textures);
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_BASE_COLOR, "white", textures);
       break;
     case aiTextureType_NORMALS:
-      texture_json["texture"] = FindOrCreateTexture(aiTextureType_NORMALS, "normal.png", textures);
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_NORMALS, "normal", textures);
       break;
     case aiTextureType_EMISSIVE:
-      texture_json["texture"] = FindOrCreateTexture(aiTextureType_EMISSIVE, "black.png", textures);
+      texture_json["texture"] = FindOrCreateTexture(aiTextureType_EMISSIVE, "black", textures);
       break;
   }
   const aiTextureMapMode mapmode[] = {aiTextureMapMode_Wrap, aiTextureMapMode_Wrap, static_cast<aiTextureMapMode>(-1)};
