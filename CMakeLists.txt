@@ -22,11 +22,17 @@ CPMAddPackage(
   "JSON_BuildTests OFF"
 )
 
+option(APP_MODE "app mode (turn off for doctest)" OFF)
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_executable(${CMAKE_PROJECT_NAME})
 	target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DOCTEST_CONFIG_SUPER_FAST_ASSERTS)
 	target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${doctest_SOURCE_DIR}")
-	add_subdirectory(tests)
+  if (APP_MODE)
+	  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DOCTEST_CONFIG_DISABLE)
+	  add_subdirectory(app)
+  else()
+	  add_subdirectory(tests)
+  endif()
 else()
   add_library(${PROJECT_NAME})
 endif()

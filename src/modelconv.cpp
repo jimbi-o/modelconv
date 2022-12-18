@@ -371,7 +371,7 @@ auto GetTextureIndex(const aiTextureType texture_type, const char* const path, c
   }
   return kInvalidTexture;
 }
-constexpr auto CreateTexture(const aiTextureType texture_type, const char* const path) {
+auto CreateTexture(const aiTextureType texture_type, const char* const path) {
   return Texture{
     .texture_type = texture_type,
     .path = path,
