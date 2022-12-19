@@ -679,7 +679,6 @@ void OutputToDirectory(const char* const input_filepath, const char* const outpu
   json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
   json["binary_filename"] = binary_filename;
   json["material_settings"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials, true);
-  json["output_directory"] = output_directory;
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
   WriteOutJson(json, json_filepath.c_str());
 }
