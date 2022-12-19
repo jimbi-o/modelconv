@@ -28,12 +28,14 @@ filelist_linear = []
 for entity in json_data["material_settings"]["textures"]:
     filepath = entity["path"]
     if filepath.count('.') == 0:
+        del entity["type"]
         continue
     if entity["type"] == "albedo" or entity["type"] == "emissive":
         filelist_srgb.append(filepath)
     else:
         filelist_linear.append(filepath)
-    entity["path"] = os.path.basename(filepath) + ".dds"
+    entity["path"] = os.path.splitext(filepath)[0] + ".dds"
+    del entity["type"]
 
 # output new texture names to json
 with open(output_json, "w") as outfile:
