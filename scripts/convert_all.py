@@ -22,6 +22,29 @@ file = open(output_json)
 json_data = json.load(file)
 file.close()
 
+# join metallic, roughness, occlusion params
+for entity in json_data["material_settings"]["materials"]:
+    entity["metallic_roughness_occlusion"] = {
+        "metallic_factor" : entity["metallic"]["factor"],
+        "roughness_factor" : entity["roughness"]["factor"],
+        "occlusion_strength" : entity["occlusion"]["strength"],
+        "texture" : {
+            "texture" : entity["metallic"]["texture"]["texture"],
+            "sampler" : entity["metallic"]["texture"]["sampler"],
+        },
+    }
+    # only converting from gltf format texture is implemented
+    assert(entity["metallic"]["texture"]["texture"] == entity["roughness"]["texture"]["texture"])
+    assert(entity["metallic"]["texture"]["sampler"] == entity["roughness"]["texture"]["sampler"])
+    assert(entity["metallic"]["texture"]["texture"] == entity["occlusion"]["texture"]["texture"])
+    assert(entity["metallic"]["texture"]["sampler"] == entity["occlusion"]["texture"]["sampler"])
+    assert(entity["metallic"]["texture"]["channel"]  == 1)
+    assert(entity["roughness"]["texture"]["channel"] == 2)
+    assert(entity["occlusion"]["texture"]["channel"] == 0)
+    entity.pop("metallic")
+    entity.pop("roughness")
+    entity.pop("occlusion")
+
 # gather texture list and output dds names to json
 filelist_srgb = []
 filelist_linear = []

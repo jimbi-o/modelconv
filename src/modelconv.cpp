@@ -74,7 +74,6 @@ struct MeshBuffers {
   std::vector<float> vertex_buffer_position;
   std::vector<float> vertex_buffer_normal;
   std::vector<float> vertex_buffer_tangent;
-  std::vector<float> vertex_buffer_bitangent;
   std::vector<float> vertex_buffer_texcoord;
 };
 auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
@@ -83,7 +82,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
   std::vector<float> vertex_buffer_position;
   std::vector<float> vertex_buffer_normal;
   std::vector<float> vertex_buffer_tangent;
-  std::vector<float> vertex_buffer_bitangent;
   std::vector<float> vertex_buffer_texcoord;
   uint32_t vertex_buffer_index_offset = 0;
   for (uint32_t i = 0; i < mesh_num; i++) {
@@ -121,7 +119,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
       vertex_buffer_position.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       vertex_buffer_normal.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       vertex_buffer_tangent.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
-      vertex_buffer_bitangent.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       vertex_buffer_texcoord.reserve((per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 2);
       const auto valid_texcoord = (mesh->HasTextureCoords(0) && mesh->mNumUVComponents[0] == 2);
       if (!valid_texcoord) {
@@ -131,7 +128,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
         Push3Components(mesh->mVertices[j],   &vertex_buffer_position);
         Push3Components(mesh->mNormals[j],    &vertex_buffer_normal);
         Push3Components(mesh->mTangents[j],   &vertex_buffer_tangent);
-        Push3Components(mesh->mBitangents[j], &vertex_buffer_bitangent);
         if (valid_texcoord) {
           Push2Components(mesh->mTextureCoords[0][j], &vertex_buffer_texcoord);
         }
@@ -139,7 +135,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
       assert(vertex_buffer_position.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       assert(vertex_buffer_normal.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       assert(vertex_buffer_tangent.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
-      assert(vertex_buffer_bitangent.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 3);
       assert(vertex_buffer_texcoord.size() == (per_mesh_data.vertex_buffer_index_offset + mesh->mNumVertices) * 2);
     }
     {
@@ -152,7 +147,6 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
     vertex_buffer_position,
     vertex_buffer_normal,
     vertex_buffer_tangent,
-    vertex_buffer_bitangent,
     vertex_buffer_texcoord,
   };
 }
@@ -192,7 +186,6 @@ void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
   OutputBinaryToFile(mesh_buffers.vertex_buffer_position, &output_file);
   OutputBinaryToFile(mesh_buffers.vertex_buffer_normal, &output_file);
   OutputBinaryToFile(mesh_buffers.vertex_buffer_tangent, &output_file);
-  OutputBinaryToFile(mesh_buffers.vertex_buffer_bitangent, &output_file);
   OutputBinaryToFile(mesh_buffers.vertex_buffer_texcoord, &output_file);
 }
 auto CreateJsonBinaryEntity(const std::size_t& size_in_bytes, const std::size_t& stride_in_bytes, const uint32_t offset_in_bytes) {
@@ -249,8 +242,6 @@ auto CreateJsonBinaryEntityList(const std::vector<float>& transform_matrix_list,
   offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_normal);
   json["tangent"]   = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_tangent, 3, offset_in_bytes);
   offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_tangent);
-  json["bitangent"] = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_bitangent, 3, offset_in_bytes);
-  offset_in_bytes  += GetVectorSizeInBytes(mesh_buffers.vertex_buffer_bitangent);
   json["texcoord"]  = CreateJsonBinaryEntity(mesh_buffers.vertex_buffer_texcoord, 2, offset_in_bytes);
   return json;
 }
