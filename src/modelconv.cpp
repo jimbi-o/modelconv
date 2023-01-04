@@ -153,11 +153,11 @@ auto GatherMeshData(const uint32_t mesh_num, const aiMesh* const * meshes,
 auto GetFlattenedMatrixList(const std::vector<aiMatrix4x4>& matrix_list) {
   if (matrix_list.empty()) { return std::vector<float>{}; }
   assert(sizeof(matrix_list[0].a1) == 4);
-  const auto kMatrixNum = GetUint32(matrix_list.size());
+  const auto matrix_num = GetUint32(matrix_list.size());
   const uint32_t kComponentNum = 16;
   const auto kMatrixByteSize = GetUint32(sizeof(float)) * kComponentNum;
-  std::vector<float> float_list(kComponentNum * kMatrixNum);
-  for (uint32_t i = 0; i < kMatrixNum; i++) {
+  std::vector<float> float_list(kComponentNum * matrix_num);
+  for (uint32_t i = 0; i < matrix_num; i++) {
     memcpy(float_list.data() + i * kComponentNum, &matrix_list[i].a1, kMatrixByteSize);
   }
   return float_list;
@@ -168,6 +168,16 @@ auto GetTransformMatrixList(aiNode* root_node, PerDrawCallModelIndexSet* per_dra
   PushTransformMatrix(root_node, kInvalidIndex, transform_matrix, per_draw_call_model_index_set, &transform_matrix_list);
   return GetFlattenedMatrixList(std::move(transform_matrix_list));
 }
+auto FlattenTransformIndexLists(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_model_index_set) {
+  std::vector<uint32_t> transform_index_list_offset, transform_index_list;
+  for (const auto& entity : per_draw_call_model_index_set) {
+    transform_index_list_offset.push_back(GetUint32(transform_index_list.size()));
+    for (const auto& index : entity.transform_matrix_index_list) {
+      transform_index_list.push_back(index);
+    }
+  }
+  return std::make_pair(transform_index_list_offset, transform_index_list);
+}
 auto OutputBinaryToFile(const size_t file_size_in_byte, const void* buffer, std::ofstream* ofstream) {
   ofstream->write(reinterpret_cast<const char*>(buffer), static_cast<std::streamsize>(file_size_in_byte));
 }
@@ -177,10 +187,14 @@ auto OutputBinaryToFile(const std::vector<T>& buffer, std::ofstream* ofstream) {
   OutputBinaryToFile(buffer.size() * sizeof(buffer[0]), buffer.data(), ofstream);
 }
 void OutputBinariesToFile(const std::vector<float>& transform_matrix_list,
+                          const std::vector<uint32_t>& transform_index_list_offset,
+                          const std::vector<uint32_t>& transform_index_list,
                           const MeshBuffers& mesh_buffers,
                           const char* const filename) {
   std::ofstream output_file(filename, std::ios::out | std::ios::binary);
   // call order to OutputBinaryToFile must match that of CreateJsonBinaryEntity
+  OutputBinaryToFile(transform_index_list_offset, &output_file);
+  OutputBinaryToFile(transform_index_list, &output_file);
   OutputBinaryToFile(transform_matrix_list, &output_file);
   OutputBinaryToFile(mesh_buffers.index_buffer, &output_file);
   OutputBinaryToFile(mesh_buffers.vertex_buffer_position, &output_file);
@@ -210,10 +224,7 @@ auto CreateMeshJson(const std::vector<PerDrawCallModelIndexSet>& per_draw_call_m
   for (uint32_t i = 0; i < mesh_num; i++) {
     const auto& mesh = per_draw_call_model_index_set[i];
     nlohmann::json elem;
-    elem["transform"] = nlohmann::json::array();
-    for (const auto& transform : mesh.transform_matrix_index_list) {
-      elem["transform"].push_back(transform);
-    }
+    elem["instance_num"] = mesh.transform_matrix_index_list.size();
     elem["index_buffer_offset"] = mesh.index_buffer_offset;
     elem["index_buffer_len"] = mesh.index_buffer_len;
     elem["vertex_buffer_index_offset"] = mesh.vertex_buffer_index_offset;
@@ -228,10 +239,16 @@ auto GetVectorSizeInBytes(const std::vector<T>& vector) {
   return GetUint32(vector.size() * sizeof(vector[0]));
 }
 auto CreateJsonBinaryEntityList(const std::vector<float>& transform_matrix_list,
+                                const std::vector<uint32_t>& transform_index_list_offset,
+                                const std::vector<uint32_t>& transform_index_list,
                                 const MeshBuffers& mesh_buffers) {
   nlohmann::json json;
   // call order to CreateJsonBinaryEntity must match that of OutputBinaryToFile
   uint32_t offset_in_bytes = 0;
+  json["transform_offset"] = CreateJsonBinaryEntity(transform_index_list_offset, 16, offset_in_bytes);
+  offset_in_bytes         += GetVectorSizeInBytes(transform_index_list_offset);
+  json["transform_index"]  = CreateJsonBinaryEntity(transform_index_list, 1, offset_in_bytes);
+  offset_in_bytes         += GetVectorSizeInBytes(transform_index_list);
   json["transform"] = CreateJsonBinaryEntity(transform_matrix_list, 16, offset_in_bytes);
   offset_in_bytes  += GetVectorSizeInBytes(transform_matrix_list);
   json["index"]     = CreateJsonBinaryEntity(mesh_buffers.index_buffer, 1, offset_in_bytes);
@@ -660,14 +677,15 @@ void OutputToDirectory(const char* const input_filepath, const char* const outpu
   }
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
+  const auto [transform_index_list_offset, transform_index_list] = FlattenTransformIndexLists(per_draw_call_model_index_set);
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
   const auto binary_filename = GetOutputFilename(basename, "bin");
   const auto output_directory = MergeStrings(output_dir_root, '/', basename);
   std::filesystem::create_directory(output_directory);
-  OutputBinariesToFile(transform_matrix_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
+  OutputBinariesToFile(transform_matrix_list, transform_index_list_offset, transform_index_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
-  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
+  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, transform_index_list_offset, transform_index_list, mesh_buffers);
   json["binary_filename"] = binary_filename;
   json["material_settings"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials, true);
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
@@ -708,14 +726,15 @@ TEST_CASE("load model") {
   CHECK_NE(scene->mRootNode, nullptr);
   std::vector<PerDrawCallModelIndexSet> per_draw_call_model_index_set(scene->mNumMeshes);
   const auto transform_matrix_list = GetTransformMatrixList(scene->mRootNode, per_draw_call_model_index_set.data());
+  const auto [transform_index_list_offset, transform_index_list] = FlattenTransformIndexLists(per_draw_call_model_index_set);
   const auto mesh_buffers = GatherMeshData(scene->mNumMeshes, scene->mMeshes, &per_draw_call_model_index_set);
   const auto binary_filename = GetOutputFilename(basename, "bin");
   const auto output_directory = MergeStrings(directory, '/', basename);
   std::filesystem::create_directory(output_directory);
-  OutputBinariesToFile(transform_matrix_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
+  OutputBinariesToFile(transform_matrix_list, transform_index_list_offset, transform_index_list, mesh_buffers, GetOutputFilePath(output_directory.c_str(), binary_filename.c_str()).c_str());
   nlohmann::json json;
   json["meshes"] = CreateMeshJson(per_draw_call_model_index_set);
-  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, mesh_buffers);
+  json["binary_info"] = CreateJsonBinaryEntityList(transform_matrix_list, transform_index_list_offset, transform_index_list, mesh_buffers);
   json["binary_filename"] = binary_filename;
   json["material_settings"] = CreateJsonMaterialList(scene->mNumMaterials, scene->mMaterials, true);
   const auto json_filepath = GetOutputFilePath(output_directory.c_str(), GetOutputFilename(basename, "json").c_str());
